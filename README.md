@@ -1,8 +1,10 @@
-# GCP ATS Analyzer — Cloud DevOps Portfolio
+# GCP ATS Analyzer
 
-A production-ready Cloud DevOps project showcasing modern GCP infrastructure and deployment practices.
+Takes a job description and applicant's PDF resume to generate an ATS match score and provide actionable recommendations using GCP infrastructure and Vertex AI.
 
 **Live Demo:** https://gcp-ats-analyzer-dev-jsg2hvecfa-uw.a.run.app/
+
+![ATS Analyzer Demo](./demo.png)
 
 ## Features
 - **FastAPI** backend with Vertex AI Gemini 2.0 Flash integration
