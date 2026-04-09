@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Configure logging
@@ -13,6 +14,15 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI
 app = FastAPI(title="GCP ATS Analyzer")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ============================================================================
 # LLM Configuration (Vertex AI / Gemini)
