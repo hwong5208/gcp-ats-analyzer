@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and fill in your values
+# cp terraform.tfvars.example terraform.tfvars
+
+project_id                   = "your-gcp-project-id"
+region                       = "us-central1"
+environment                  = "dev"
+app_name                     = "gcp-ats-analyzer"
+cloud_run_min_instances      = 0  # Scale to zero when idle
+cloud_run_max_instances      = 2
+artifact_registry_repository = "ats-analyzer"
