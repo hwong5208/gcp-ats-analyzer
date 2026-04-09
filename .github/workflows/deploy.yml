@@ -1,59 +1,69 @@
 name: Build & Deploy to Cloud Run
 
 on:
-  push:
-    branches:
-      - main
-      - develop
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
 
 env:
+  GCP_PROJECT_ID: gcp-ats-analyzer
+  GCP_REGION: us-west1
+  ARTIFACT_REGISTRY_REPO: ats-analyzer
   IMAGE_NAME: gcp-ats-analyzer
-  REGISTRY_REGION: us-central1
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Authenticate to Google Cloud
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
+      # Set up Cloud SDK
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker authentication to Artifact Registry
+      # Configure Docker
+      - name: Configure Docker
         run: |
-          gcloud auth configure-docker ${{ env.REGISTRY_REGION }}-docker.pkg.dev
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
 
+      # Build Docker image
       - name: Build Docker image
         run: |
-          docker build -t ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:${{ github.sha }} ./app
-          docker tag ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:latest
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:latest .
+          docker tag ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      - name: Push Docker image to Artifact Registry
+      # Push to Artifact Registry
+      - name: Push to Artifact Registry
         run: |
-          docker push ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
+      # Deploy to Cloud Run
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: gcp-ats-analyzer-dev
-          region: ${{ env.REGISTRY_REGION }}
-          image: ${{ env.REGISTRY_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/ats-analyzer/${{ env.IMAGE_NAME }}:${{ github.sha }}
-          flags: --allow-unauthenticated --set-env-vars=ENVIRONMENT=dev
+          region: ${{ env.GCP_REGION }}
+          image: ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          flags: '--allow-unauthenticated'
 
-      - name: Output Cloud Run URL
+      # Output the service URL
+      - name: Service URL
         run: |
-          echo "Cloud Run service deployed successfully!"
-          gcloud run services describe gcp-ats-analyzer-dev --region ${{ env.REGISTRY_REGION }} --format='value(status.url)'
+          echo "✅ Deployment successful!"
+          gcloud run services describe gcp-ats-analyzer-dev --region ${{ env.GCP_REGION }} --format='value(status.url)'
