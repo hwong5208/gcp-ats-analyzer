@@ -1,21 +1,27 @@
-# GCP ATS Analyzer — Phase 1: Main App
+# GCP ATS Analyzer — Cloud DevOps Portfolio
 
-A Cloud DevOps portfolio project showcasing:
-- **FastAPI** backend with Vertex AI Gemini integration
-- **Docker** containerization
-- **Terraform** infrastructure as code
-- **Cloud Run** serverless deployment
-- **GitHub Actions** CI/CD pipeline
-- Resume vs. Job Description ATS (Applicant Tracking System) analysis
+A production-ready Cloud DevOps project showcasing modern GCP infrastructure and deployment practices.
+
+**Live Demo:** https://gcp-ats-analyzer-dev-jsg2hvecfa-uw.a.run.app/
+
+## Features
+- **FastAPI** backend with Vertex AI Gemini 2.0 Flash integration
+- **Docker** containerization with optimized images
+- **Terraform** infrastructure as code (IaC)
+- **Cloud Run** serverless deployment (scale-to-zero)
+- **GitHub Actions** manual CI/CD pipeline with service account authentication
+- **CORS middleware** for cross-origin requests
+- Resume vs. Job Description ATS (Applicant Tracking System) analysis using AI
 
 ## Quick Start
 
 ### Local Development
 
 #### Prerequisites
-- Python 3.12+
+- Python 3.11+
 - Docker
-- GCP account with Vertex AI enabled
+- GCP account with Vertex AI API enabled
+- gcloud CLI (for credentials)
 
 #### 1. Set up environment
 ```bash
@@ -29,7 +35,7 @@ pip install -r requirements.txt
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
 export GCP_PROJECT_ID="your-project-id"
-export GCP_REGION="us-central1"
+export GCP_REGION="us-west1"
 ```
 
 #### 3. Run locally
@@ -44,14 +50,15 @@ The app will be available at `http://localhost:8000`
 ### Docker Build & Run
 
 ```bash
-cd app
 docker build -t gcp-ats-analyzer:latest .
 docker run -p 8000:8000 \
   -e GCP_PROJECT_ID="your-project-id" \
-  -e GCP_REGION="us-central1" \
-  -v ~/.config/gcloud:/home/appuser/.config/gcloud:ro \
+  -e GCP_REGION="us-west1" \
+  -v ~/.config/gcloud:/root/.config/gcloud:ro \
   gcp-ats-analyzer:latest
 ```
+
+Then visit `http://localhost:8000` in your browser.
 
 ---
 
@@ -84,28 +91,38 @@ terraform output cloud_run_service_url
 
 ### GitHub Actions Deployment
 
-To enable auto-deployment on push to `main`:
+Manual deployment pipeline with service account authentication.
 
-1. **Set up Workload Identity Federation (WIF)** for GitHub Actions:
+1. **Create a service account for CI/CD**:
    ```bash
-   gcloud iam service-accounts create github-actions \
-     --display-name="GitHub Actions"
+   gcloud iam service-accounts create github-cicd --display-name="GitHub CI/CD"
    
-   # Grant necessary permissions...
-   gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
-     --member=serviceAccount:github-actions@$(gcloud config get-value project).iam.gserviceaccount.com \
-     --role=roles/run.admin
+   # Grant Cloud Run admin role
+   gcloud projects add-iam-policy-binding PROJECT_ID \
+     --member="serviceAccount:github-cicd@PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/run.admin"
    
-   # Configure WIF...
-   # (Detailed steps at https://github.com/google-github-actions/auth#setup)
+   # Grant Artifact Registry writer role
+   gcloud projects add-iam-policy-binding PROJECT_ID \
+     --member="serviceAccount:github-cicd@PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/artifactregistry.writer"
    ```
 
-2. **Add GitHub secrets**:
-   - `GCP_PROJECT_ID`: Your GCP project ID
-   - `WIF_PROVIDER`: Workload Identity Provider URL
-   - `WIF_SERVICE_ACCOUNT`: Service account email
+2. **Create and download service account key**:
+   ```bash
+   gcloud iam service-accounts keys create ~/github-key.json \
+     --iam-account=github-cicd@PROJECT_ID.iam.gserviceaccount.com
+   ```
 
-3. **Push to main** to trigger deployment
+3. **Add GitHub secret**:
+   - Go to GitHub repo → **Settings** → **Secrets and variables** → **Actions**
+   - Add secret `GCP_SA_KEY` with the contents of `~/github-key.json`
+
+4. **Trigger deployment**:
+   - Go to GitHub repo → **Actions** tab
+   - Select **Build & Deploy to Cloud Run**
+   - Click **Run workflow** → select **dev** → **Run workflow**
+   - Monitor the deployment in real-time
 
 ---
 
@@ -167,13 +184,15 @@ Health check endpoint.
   - `roles/monitoring.metricWriter` (Cloud Monitoring)
 
 ### CI/CD (GitHub Actions)
-- **Trigger**: Push to `main` or `develop` branch
+- **Trigger**: Manual workflow dispatch (click "Run workflow")
 - **Steps**:
-  1. Authenticate with GCP via Workload Identity Federation
-  2. Build Docker image
-  3. Push to Artifact Registry
-  4. Deploy to Cloud Run
-- **Status**: Outputs Cloud Run URL upon success
+  1. Check out code
+  2. Authenticate with GCP using service account key
+  3. Configure Docker authentication
+  4. Build Docker image (tagged with commit SHA)
+  5. Push to Artifact Registry (both `latest` and SHA tags)
+  6. Deploy to Cloud Run (update existing service)
+- **Output**: Cloud Run service URL upon success
 
 ---
 
@@ -220,39 +239,75 @@ gcp-app/
 ## Troubleshooting
 
 ### "Vertex AI initialization failed"
-- Ensure `google-cloud-aiplatform` is installed
-- Verify GCP credentials are set (`GOOGLE_APPLICATION_CREDENTIALS`)
+- Ensure `google-cloud-aiplatform` is installed: `pip install google-cloud-aiplatform`
+- Verify GCP credentials are set: `echo $GOOGLE_APPLICATION_CREDENTIALS`
 - Confirm Vertex AI API is enabled: `gcloud services enable aiplatform.googleapis.com`
+- Check service account has `roles/aiplatform.user` permission
 
 ### "Cloud Run deployment failed"
-- Check service account has `roles/run.admin` permission
-- Verify Docker image is in Artifact Registry
-- Review Cloud Run logs: `gcloud run services describe gcp-ats-analyzer-dev --region us-central1`
+- Verify service account has `roles/run.admin` permission
+- Check Docker image exists in Artifact Registry: `gcloud artifacts docker images list us-west1-docker.pkg.dev/PROJECT_ID/ats-analyzer`
+- Review Cloud Run logs: `gcloud run services describe gcp-ats-analyzer-dev --region us-west1 --format=json | jq '.status'`
 
-### "PDF parsing fails"
+### "API returns 405 Method Not Allowed" (OPTIONS request fails)
+- CORS middleware is required for browser-based API calls
+- Ensure `fastapi.middleware.cors.CORSMiddleware` is added to app
+- This is already configured in the latest version
+
+### "PDF parsing fails in browser"
 - Ensure PDF is text-based (not scanned/image-only)
+- Max file size is 10MB
 - Try with a simple test PDF first
-- Check browser console for errors
+- Check browser console for errors: **F12 → Console tab**
 
 ---
 
-## Next Steps (Phase 2)
+## What This Project Demonstrates
 
-Phase 2 will add:
-- **Firestore** for visit telemetry
-- **Grafana** monitoring dashboard (Cloud Run service)
-- **Prometheus-compatible** endpoints for metrics
-- **Local docker-compose** stack for development
+### Cloud DevOps Skills
+✅ **GCP Infrastructure Management**
+- Cloud Run serverless deployment
+- Artifact Registry Docker image management  
+- Service Account & IAM roles configuration
+- API enablement and quota management
+
+✅ **Infrastructure as Code (Terraform)**
+- Resource declaration and dependency management
+- Output variables for automation
+- IAM policy management
+- Multi-tier architecture setup
+
+✅ **CI/CD Pipeline**
+- GitHub Actions workflow automation
+- Service account authentication
+- Docker image building and registry push
+- Automated deployments with zero-downtime updates
+
+✅ **Production Readiness**
+- Error handling and logging
+- CORS middleware for cross-origin requests
+- Health check endpoints
+- Environment-based configuration
+- Proper HTTP status codes (204 for no-content responses)
+
+✅ **DevOps Best Practices**
+- Containerization with Docker
+- Stateless application design
+- Infrastructure in Git (version control)
+- Least privilege IAM permissions
+- Cost optimization (free tier, scale-to-zero)
 
 ---
 
 ## Security Considerations
 
-- Service account has minimal permissions (principle of least privilege)
-- Cloud Run scales to zero (no idle costs, reduced attack surface)
-- API calls to Vertex AI use default Google API authentication
-- Frontend runs in-browser PDF parsing (no files sent to backend)
-- CORS is not needed (frontend served from same origin)
+- **Service account**: Minimal permissions (principle of least privilege)
+  - Only `roles/aiplatform.user`, `roles/logging.logWriter`, `roles/monitoring.metricWriter`
+- **Cloud Run**: Scales to zero (no idle costs, reduced attack surface)
+- **API authentication**: Vertex AI uses Application Default Credentials (ADC)
+- **Frontend**: In-browser PDF parsing (no files sent to backend)
+- **CORS**: Configured to allow same-origin requests for browser compatibility
+- **Environment variables**: GCP credentials handled by Cloud Run service account (no key files needed)
 
 ---
 
