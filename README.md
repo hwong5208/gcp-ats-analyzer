@@ -4,7 +4,7 @@ Takes a job description and applicant's PDF resume to generate an ATS match scor
 
 **Live Demo:** https://gcp-ats-analyzer-dev-jsg2hvecfa-uw.a.run.app/
 
-![ATS Analyzer Demo](./demo.png)
+![ATS Analyzer Demo](./demo2.png)
 
 ## Features
 - **FastAPI** backend with Vertex AI Gemini 2.0 Flash integration
