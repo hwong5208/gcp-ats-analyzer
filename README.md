@@ -311,6 +311,12 @@ gcp-app/
 
 ---
 
+## Development
+
+Built with [Claude Code](https://claude.com/claude-code).
+
+---
+
 ## Contributing
 
 To add features or fixes:
