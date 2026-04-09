@@ -318,14 +318,3 @@ gcp-app/
 Built with [Claude Code](https://claude.com/claude-code).
 
 ---
-
-## Contributing
-
-To add features or fixes:
-1. Create a feature branch
-2. Test locally with Docker
-3. Push to `develop` branch for testing
-4. Create a PR to `main` for deployment
-
----
-
