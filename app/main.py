@@ -4,7 +4,7 @@ import os
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 # Configure logging
@@ -170,7 +170,7 @@ async def read_index():
 @app.get("/favicon.ico")
 async def favicon():
     """Favicon - return 204 No Content to suppress browser errors."""
-    return JSONResponse(status_code=204, content={})
+    return Response(status_code=204)
 
 
 @app.get("/{full_path:path}")
@@ -181,7 +181,7 @@ async def serve_spa(full_path: str):
     """
     # Skip favicon requests
     if full_path == "favicon.ico":
-        return JSONResponse(status_code=204, content={})
+        return Response(status_code=204)
 
     # If it looks like a static file, try to serve it
     if "." in full_path:
